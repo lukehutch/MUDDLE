@@ -1,3 +1,10 @@
+/*
+ * Muddle: MUltiscale Decomposition by the DiLation of Extrema
+ * 
+ * Luke Hutchison, 2015
+ * 
+ * Available under MIT license.
+ */
 package io.github.lukehutch.muddle;
 
 import java.util.Arrays;

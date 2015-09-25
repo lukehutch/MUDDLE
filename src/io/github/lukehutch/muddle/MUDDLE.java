@@ -1,3 +1,10 @@
+/*
+ * Muddle: MUltiscale Decomposition by the DiLation of Extrema
+ * 
+ * Luke Hutchison, 2015
+ * 
+ * Available under MIT license.
+ */
 package io.github.lukehutch.muddle;
 
 import java.util.Arrays;
@@ -48,6 +55,9 @@ public class MUDDLE {
                 // TODO: the difference is picking the widest extremum (dominant over the widest range) vs. the tallest.
                 Extrema otherTypeExtrema = extremumType == 1 ? minima : maxima;
                 int centerX = (prevDataIdx + currDataIdx) / 2;
+                if (centerX == 4452) {
+                    System.out.println("got here");
+                }
                 int searchRadius = (currDataIdx - prevDataIdx - 1) / 2;
                 int maxRadiusX = centerX, maxRadius = otherTypeExtrema.maxRadius[maxRadiusX];
                 for (int r = 1; r <= searchRadius; r++) {

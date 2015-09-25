@@ -1,4 +1,13 @@
+/*
+ * Muddle: MUltiscale Decomposition by the DiLation of Extrema
+ * 
+ * Luke Hutchison, 2015
+ * 
+ * Available under MIT license.
+ */
 package io.github.lukehutch.muddle;
+
+import java.util.Arrays;
 
 public class Extrema {
     int radius = 0;
@@ -18,6 +27,7 @@ public class Extrema {
         }
         numLiveExtrema = data.length;
         maxRadius = new int[data.length];
+        Arrays.fill(maxRadius, -1);
     }
 
     /**
@@ -27,22 +37,35 @@ public class Extrema {
      */
     public void dilate() {
         radius++;
-        int prevX = -1;
-        for (int readIdx = 0, maxReadIdx = numLiveExtrema, writeIdx = 0; readIdx < maxReadIdx; readIdx++) {
+        int writeIdx = 0;
+        for (int readIdx = 0, prevX = -1; readIdx < numLiveExtrema; readIdx++) {
             int x = liveExtremumDataIdx[readIdx];
-            int nextX = readIdx + 1 < maxReadIdx ? liveExtremumDataIdx[readIdx + 1] : -1;
-            // if current extremum is dominated by previous or next extremum at this radius
-            if ((prevX >= 0 && prevX + radius >= x - radius && ((isMax && data[x] < data[prevX]) || (!isMax && data[x] > data[prevX])))
-                || ((nextX >= 0 && x + radius >= nextX - radius && ((isMax && data[x] <= data[nextX]) || (!isMax && data[x] >= data[nextX]))))) {
-                // This extremum did not survive this dilation, remove it
-                numLiveExtrema--;
+            if (maxRadius[x] == -1
+                && (isMax && ((x - radius >= 0 && //
+                data[x - radius] > data[x]) || (x + radius < data.length && data[x + radius] >= data[x])))
+                || (!isMax && ((x - radius >= 0 && //
+                data[x - radius] < data[x]) || (x + radius < data.length && data[x + radius] <= data[x])))) {
+                // Current extremum was dominated by a data point at this radius (and not any smaller radius)
+                // -- however, don't remove the extremum until finalize(), so it can still dominate other extrema.
+                maxRadius[x] = radius - 1;
+            }
+            int nextX = readIdx + 1 < numLiveExtrema ? liveExtremumDataIdx[readIdx + 1] : -1;
+            if ((prevX >= 0 && prevX + radius >= x - radius && //
+                ((isMax && data[x] < data[prevX]) || (!isMax && data[x] > data[prevX])))
+                || ((nextX >= 0 && x + radius >= nextX - radius && //
+                ((isMax && data[x] <= data[nextX]) || (!isMax && data[x] >= data[nextX]))))) {
+                // Current extremum is dominated by previous or next extremum at this radius, remove it.
+                // Update maxRadius[x], but only if extremum wasn't dominated by a data point already.
+                if (maxRadius[x] == -1) {
+                    maxRadius[x] = radius - 1;
+                }
             } else {
-                // This extremum survived (keep array packed)
-                maxRadius[x] = radius;
+                // This extremum was not dominated by another extremum at this radius, keep it.
                 liveExtremumDataIdx[writeIdx++] = x;
             }
             prevX = x;
         }
+        numLiveExtrema = writeIdx;
     }
 
     /**
@@ -54,30 +77,19 @@ public class Extrema {
      * Runs in O[data.length].
      */
     public void finalize() {
-        // Check if extremum is dominated by a data value at the final dilation radius
-        for (int readIdx = 0, maxReadIdx = numLiveExtrema, writeIdx = 0; readIdx < maxReadIdx; readIdx++) {
+        int writeIdx = 0;
+        for (int readIdx = 0; readIdx < numLiveExtrema; readIdx++) {
             int x = liveExtremumDataIdx[readIdx];
-            boolean extremumRemoved = false;
-            for (int r = 1; r <= radius; r++) {
-                // If extremum is dominated by a data value at x +/- r
-                // (or co-dominant with a data value at x + r)
-                if ((isMax && ((x - r >= 0 && data[x - r] > data[x]) || (x + r < data.length && data[x + r] >= data[x])))
-                    || (!isMax && ((x - r >= 0 && data[x - r] < data[x]) || (x + r < data.length && data[x + r] <= data[x])))) {
-                    // This extremum was dominated by a data point at radius r,
-                    // update max radius to the smaller value just found, and remove the exremum.
-                    maxRadius[x] = r - 1;
-                    numLiveExtrema--;
-                    // Stop searching once max dilation radius has been found
-                    extremumRemoved = true;
-                    break;
-                }
-            }
-            if (!extremumRemoved) {
-                // This extremum survived, i.e. is not dominated by a data point within x +/- radius
-                // (keep array packed)
+            if (maxRadius[x] != -1) {
+                // This extremum was not dominated by another extremum within the max radius,
+                // but it was dominated by a data point at a smaller radius -- remove this extremum.
+            } else {
+                // This extremum dominated all extrema and all data points, keep it.
                 liveExtremumDataIdx[writeIdx++] = x;
+                // Update radius to max dilation radius.
+                maxRadius[x] = radius;
             }
         }
-
+        numLiveExtrema = writeIdx;
     }
 }
