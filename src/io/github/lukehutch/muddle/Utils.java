@@ -68,6 +68,8 @@ public class Utils {
     public static void main(String[] args) {
         // float[] data = loadData("filename");
 
+        // PPG data available at: http://www.signalprocessingsociety.org/spcup2015/index.html
+        
         // Rows 1 and 2 are PPG signals
         float[] data = loadMat("/home/luke/Downloads/Training_data/DATA_01_TYPE01.mat", 1);
         // float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
