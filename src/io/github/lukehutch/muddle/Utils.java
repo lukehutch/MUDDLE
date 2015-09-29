@@ -7,19 +7,32 @@
  */
 package io.github.lukehutch.muddle;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Map;
 
-import com.jmatio.io.MatFileHeader;
 import com.jmatio.io.MatFileReader;
 import com.jmatio.types.MLArray;
 import com.jmatio.types.MLDouble;
 
 public class Utils {
+
+    public static float[] createRandomData(int len) {
+        double period = 50;
+        double periodRandomSkewFactor = 0.05;
+        double amplitudeNoiseFactor = 1.5;
+
+        float[] data = new float[len];
+        double phase = 0;
+        for (int i = 0; i < len; i++) {
+            phase += (1 + (Math.random() - 0.5) * periodRandomSkewFactor) / period;
+            data[i] = (float) (Math.sin(2 * Math.PI * phase) + (Math.random() - 0.5) * amplitudeNoiseFactor);
+            // System.out.println(data[i]);
+        }
+        return data;
+    }
 
     public static float[] loadData(String filename) {
         try {
@@ -68,12 +81,47 @@ public class Utils {
     public static void main(String[] args) {
         // float[] data = loadData("filename");
 
-        // Rows 1 and 2 are PPG signals
+        // // Rows 1 and 2 are PPG signals
         float[] data = loadMat("/home/luke/Downloads/Training_data/DATA_01_TYPE01.mat", 1);
-        // float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
-        // for (float f : hist) {
+        float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
+        // Rate of change of ln(x) is 1/x -- scale entries of hist by dividing by x,
+        // so that taking the partial sum from x to 2x is a weighted average over a constant denominator.
+        // Take cumulative hist of the result, then cumulHist[2x] - cumulHist[x] gives the mean area over the log hist
+        // from log(x) to log(2x).
+        float[] cumulHist = new float[hist.length];
+        for (int i = 0; i < hist.length; i++) {
+            cumulHist[i] = i > 0 ? cumulHist[i - 1] + hist[i] / (float) i : 0.0f;
+        }
+
+        // for (float f : cumulHist) {
         // System.out.println(f);
         // }
+
+        // radius r => period 2r + 1 => 2 * period = 4r + 2, which has its own radius: 2r' + 1 = 4r + 2 => r' = 2r +
+        // 1/2. Round down => 2r.
+        for (int i = 1, n = hist.length / 2; i < n; i++) {
+            int i2 = Math.min(hist.length, i * 2);
+            float avg = (cumulHist[i2] - cumulHist[i - 1]); // / (i2 - i + 1); // Average hist value over [i..i*2-1]
+            // inclusive
+            System.out.println(i + "\t" + hist[i] + "\t" + avg);
+        }
+        System.exit(1);
+
+        // // float[] data = createRandomData(10000);
+        // float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 60);
+        // float[] cumulHist = new float[hist.length];
+        // for (int i = 0; i < hist.length; i++) {
+        // cumulHist[i] = (i > 0 ? cumulHist[i - 1] : 0.0f) + hist[i];
+        // }
+        // // radius r => period 2r + 1 => 2 * period = 4r + 2, which has its own radius: 2r' + 1 = 4r + 2 => r' = 2r +
+        // // 1/2. Round down => 2r.
+        // for (int i = 1, n = hist.length / 2; i < n; i++) {
+        // int i2 = Math.min(hist.length, i * 2 - 1);
+        // float avg = (cumulHist[i2] - cumulHist[i - 1]) / (i2 - i + 1); // Average hist value over [i..i*2-1]
+        // // inclusive
+        // System.out.println(i + "\t" + hist[i] + "\t" + avg);
+        // }
+
         int[][] peaks = MUDDLE.findPeaks(data, /* radius = */15, /* spanGaps = */true);
         float[][] graph = new float[data.length][3];
         for (int i = 0; i < data.length; i++) {
