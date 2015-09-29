@@ -85,27 +85,35 @@ public class Utils {
         // Rows 1 and 2 are PPG signals
         float[] data = loadMat("/home/luke/Downloads/Training_data/DATA_01_TYPE01.mat", 1);
         float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
-        // Rate of change of ln(x) is 1/x -- scale entries of hist by dividing by x,
-        // so that taking the partial sum from x to 2x is a weighted average over a constant denominator.
-        // Take cumulative hist of the result, then cumulHist[2x] - cumulHist[x] gives the mean area over the log hist
-        // from log(x) to log(2x).
-        float[] cumulHist = new float[hist.length];
-        for (int i = 0; i < hist.length; i++) {
-            cumulHist[i] = i > 0 ? cumulHist[i - 1] + hist[i] / (float) i : 0.0f;
-        }
 
-        // for (float f : cumulHist) {
-        // System.out.println(f);
-        // }
-
-        // radius r => period 2r + 1 => 2 * period = 4r + 2, which has its own radius: 2r' + 1 = 4r + 2 => r' = 2r +
-        // 1/2. Round down => 2r.
-        for (int i = 1, n = hist.length / 2; i < n; i++) {
-            int i2 = Math.min(hist.length, i * 2);
-            float avg = (cumulHist[i2] - cumulHist[i - 1]); // / (i2 - i + 1); // Average hist value over [i..i*2-1]
-            // inclusive
-            System.out.println(i + "\t" + hist[i] + "\t" + avg);
+        // Perform trapezoidal integration on function, using log x-axis, then find average value
+        // over interval x to 2x using Mean = (F(2x) - F(x)) / (ln(2x) - ln(x)) = (F(2x) - F(x)) / ln(2)
+        float[] log = new float[hist.length];
+        for (int i = 1; i < log.length; i++) {
+            log[i] = (float) Math.log(i);
         }
+        float[] cumulLogHist = new float[hist.length];
+        for (int i = 2; i < hist.length; i++) {
+            float trapArea = (log[i] - log[i - 1]) * (hist[i] + hist[i - 1]) * 0.5f;
+            cumulLogHist[i] = cumulLogHist[i - 1] + trapArea;
+        }
+        float[] meanForHarmonic = new float[hist.length / 2];
+        float maxMean = 0.0f;
+        int maxMeanIdx = 0;
+        for (int i = 1; i < meanForHarmonic.length; i++) {
+            // For radius r, signal period is 2(2r + 1) = 4r + 2.
+            // For radius 2r, signal period is 2(2(2r) + 1) = 8r + 2.
+            // => If signal period increases by (2r / r) = r, period increases by (8r + 2)/(4r + 2) = (2r + 1/2)/(r + 1/2).
+            // But this is close enough to 2r.
+            float mean = (cumulLogHist[i * 2] - cumulLogHist[i]) / log[2];
+            if (mean > maxMean) {
+                maxMean = mean;
+                maxMeanIdx = i;
+            }
+            System.out.println(i + "\t" + Math.log(i) + "\t" + hist[i] + "\t" + Math.log(i) + "\t" + mean);
+        }
+        int optimalRadius = (int) (maxMeanIdx * Math.sqrt(2) + 0.5);
+        System.out.println("Max mean idx: " + maxMeanIdx + "; optimal radius: " + optimalRadius);
         System.exit(1);
 
         // // float[] data = createRandomData(10000);
