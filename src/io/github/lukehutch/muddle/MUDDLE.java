@@ -14,7 +14,8 @@ public class MUDDLE {
      * Returns an int result[2][], with the data indices of local minima in result[0] and the data indices of local
      * maxima in result[1].
      * 
-     * N.B. It is possible that result[0].length != result[1].length . (If spanGaps is true, the max difference will be 1.)
+     * N.B. It is possible that result[0].length != result[1].length . (If spanGaps is true, the max difference will be
+     * 1.)
      */
     public static int[][] findPeaks(float[] data, int radius, boolean spanGaps) {
         Extrema minima = new Extrema(data, /* isMax = */false);
@@ -55,9 +56,6 @@ public class MUDDLE {
                 // TODO: the difference is picking the widest extremum (dominant over the widest range) vs. the tallest.
                 Extrema otherTypeExtrema = extremumType == 1 ? minima : maxima;
                 int centerX = (prevDataIdx + currDataIdx) / 2;
-                if (centerX == 4452) {
-                    System.out.println("got here");
-                }
                 int searchRadius = (currDataIdx - prevDataIdx - 1) / 2;
                 int maxRadiusX = centerX, maxRadius = otherTypeExtrema.maxRadius[maxRadiusX];
                 for (int r = 1; r <= searchRadius; r++) {
@@ -93,16 +91,17 @@ public class MUDDLE {
     }
 
     public static float[] generateAlternatingExtremumTypeFractionHistogram(float[] data, int maxRadius) {
+
+        float[] alternationHist = new float[maxRadius + 1];
         Extrema minima = new Extrema(data, /* isMax = */false);
         Extrema maxima = new Extrema(data, /* isMax = */true);
-        
-        float[] alternationHist = new float[maxRadius + 1];
         for (int r = 1; r <= maxRadius; r++) {
             minima.dilate();
             maxima.dilate();
-            // Don't finalize; the alternation fraction is therefore just an estimate.
-            // (If you finalize too early, you eliminate extrema that could end up eliminating others in later steps of
-            // dilation)
+            // Removing extrema dominated by data points at each step gives a better estimate of the true alternation frac,
+            // but isn't as inefficient as running an O(maxRadius^2) loop of dilation to r followed by a call to finalize(). 
+            minima.removeExtremaDominatedByDataPoints();
+            maxima.removeExtremaDominatedByDataPoints();
 
             int numSame = 0, numDiff = 0;
             int idxMin = 0, idxMax = 0;

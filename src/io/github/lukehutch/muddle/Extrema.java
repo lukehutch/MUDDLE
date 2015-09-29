@@ -68,6 +68,18 @@ public class Extrema {
         numLiveExtrema = writeIdx;
     }
 
+    public void removeExtremaDominatedByDataPoints() {
+        int writeIdx = 0;
+        for (int readIdx = 0; readIdx < numLiveExtrema; readIdx++) {
+            int x = liveExtremumDataIdx[readIdx];
+            if (maxRadius[x] == -1) {
+                // This extremum was not dominated by any data points within the max radius, keep it.
+                liveExtremumDataIdx[writeIdx++] = x;
+            }
+        }
+        numLiveExtrema = writeIdx;
+    }
+
     /**
      * Check if extrema that survive are dominated by any data points within their radius, and if so, remove them. This
      * is run as a processing step after the final dilation step, and is needed because it's possible for an extremum A
@@ -77,19 +89,13 @@ public class Extrema {
      * Runs in O[data.length].
      */
     public void finalize() {
-        int writeIdx = 0;
-        for (int readIdx = 0; readIdx < numLiveExtrema; readIdx++) {
-            int x = liveExtremumDataIdx[readIdx];
-            if (maxRadius[x] != -1) {
-                // This extremum was not dominated by another extremum within the max radius,
-                // but it was dominated by a data point at a smaller radius -- remove this extremum.
-            } else {
-                // This extremum dominated all extrema and all data points, keep it.
-                liveExtremumDataIdx[writeIdx++] = x;
-                // Update radius to max dilation radius.
-                maxRadius[x] = radius;
-            }
+        // Remove all extrema dominated by a data point at a smaller radius.
+        // The max dilation radius for all remaining extremum will be -1, indicating the extremum has not been dominated. 
+        removeExtremaDominatedByDataPoints();
+        // Update radius to max dilation radius. (This prevents further dilation, because it will appear the extremum is dominated.)
+        for (int i = 0; i < numLiveExtrema; i++) {
+            int x = liveExtremumDataIdx[i];
+            maxRadius[x] = radius;
         }
-        numLiveExtrema = writeIdx;
     }
 }
