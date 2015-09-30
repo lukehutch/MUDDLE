@@ -87,33 +87,38 @@ public class Utils {
         float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
 
         // Perform trapezoidal integration on function, using log x-axis, then find average value
-        // over interval x to 2x using Mean = (F(2x) - F(x)) / (ln(2x) - ln(x)) = (F(2x) - F(x)) / ln(2)
-        float[] log = new float[hist.length];
-        for (int i = 1; i < log.length; i++) {
-            log[i] = (float) Math.log(i);
-        }
+        // over interval x to 2x using the First Mean Value Theorem for Integrals:
+        // Mean = (F(2x) - F(x)) / (ln(2x) - ln(x)) = (F(2x) - F(x)) / ln(2)
         float[] cumulLogHist = new float[hist.length];
-        for (int i = 2; i < hist.length; i++) {
-            float trapArea = (log[i] - log[i - 1]) * (hist[i] + hist[i - 1]) * 0.5f;
-            cumulLogHist[i] = cumulLogHist[i - 1] + trapArea;
+        float log_rMinus1 = 0.0f;
+        for (int r = 2; r < hist.length; r++) {
+            float log_r = (float) Math.log(r);
+            float trapArea = (log_r - log_rMinus1) * (hist[r] + hist[r - 1]) * 0.5f;
+            cumulLogHist[r] = cumulLogHist[r - 1] + trapArea;
+            log_rMinus1 = log_r;
         }
         float[] meanForHarmonic = new float[hist.length / 2];
         float maxMean = 0.0f;
-        int maxMeanIdx = 0;
-        for (int i = 1; i < meanForHarmonic.length; i++) {
+        int maxMeanRadius = 0;
+        float oneOverLog2 = (float) (1.0 / Math.log(2)), sqrt2 = (float) Math.sqrt(2);
+        for (int r = 1; r < meanForHarmonic.length; r++) {
             // For radius r, signal period is 2(2r + 1) = 4r + 2.
             // For radius 2r, signal period is 2(2(2r) + 1) = 8r + 2.
             // => If signal period increases by (2r / r) = r, period increases by (8r + 2)/(4r + 2) = (2r + 1/2)/(r + 1/2).
             // But this is close enough to 2r.
-            float mean = (cumulLogHist[i * 2] - cumulLogHist[i]) / log[2];
+            float mean = (cumulLogHist[r * 2] - cumulLogHist[r]) * oneOverLog2;
             if (mean > maxMean) {
                 maxMean = mean;
-                maxMeanIdx = i;
+                maxMeanRadius = r;
             }
-            System.out.println(i + "\t" + Math.log(i) + "\t" + hist[i] + "\t" + Math.log(i) + "\t" + mean);
+            float rc = r * sqrt2;
+            System.out.println(r + "\t" + Math.log(r) + "\t" + hist[r] + "\t" + rc + "\t" + Math.log(rc) + "\t" + mean);
         }
-        int optimalRadius = (int) (maxMeanIdx * Math.sqrt(2) + 0.5);
-        System.out.println("Max mean idx: " + maxMeanIdx + "; optimal radius: " + optimalRadius);
+        // Halfway through the interval of width ln(2) in the log domain occurs at an offset of
+        // e^(ln(2)/2) = e^(ln(2^(1/2))) = sqrt(2) from the start of the interval in the linear domain.
+        int optimalRadius = (int) Math.round(maxMeanRadius * sqrt2);
+        float natPeriod = 4 * maxMeanRadius + 2;  // N.B. would be more accurate if we used parabolic fit for maxMeanRadius
+        System.out.println("Max mean radius: " + maxMeanRadius + "; approx natural period: " + natPeriod + "; optimal radius: " + optimalRadius);
         System.exit(1);
 
         // // float[] data = createRandomData(10000);
