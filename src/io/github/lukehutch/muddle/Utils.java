@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 
 import com.jmatio.io.MatFileReader;
@@ -84,8 +85,12 @@ public class Utils {
         // PPG data available at: http://www.signalprocessingsociety.org/spcup2015/index.html
         // Rows 1 and 2 are PPG signals
         float[] data = loadMat("/home/luke/Downloads/Training_data/DATA_01_TYPE01.mat", 1);
+        
+        data = Arrays.copyOf(data, 20000);
+        
         float[] hist = MUDDLE.generateAlternatingExtremumTypeFractionHistogram(data, 300);
 
+        
         // Perform trapezoidal integration on function, using log x-axis, then find average value
         // over interval x to 2x using the First Mean Value Theorem for Integrals:
         // Mean = (F(2x) - F(x)) / (ln(2x) - ln(x)) = (F(2x) - F(x)) / ln(2)
@@ -97,27 +102,28 @@ public class Utils {
             cumulLogHist[r] = cumulLogHist[r - 1] + trapArea;
             log_rMinus1 = log_r;
         }
-        float[] meanForHarmonic = new float[hist.length / 2];
+        float[] meanForHarmonicInterval = new float[hist.length / 2];
         float maxMean = 0.0f;
         int maxMeanRadius = 0;
         float oneOverLog2 = (float) (1.0 / Math.log(2)), sqrt2 = (float) Math.sqrt(2);
-        for (int r = 1; r < meanForHarmonic.length; r++) {
-            // For radius r, signal period is 2(2r + 1) = 4r + 2.
-            // For radius 2r, signal period is 2(2(2r) + 1) = 8r + 2.
-            // => If signal period increases by (2r / r) = r, period increases by (8r + 2)/(4r + 2) = (2r + 1/2)/(r + 1/2).
+        for (int r = 1; r < meanForHarmonicInterval.length; r++) {
+            // For radius r, signal period is 2r + 1
+            // For radius 2r, signal period is 2(2r) + 1 = 4r + 1.
+            // => If signal period increases by (2r / r) = r, period increases by (4r + 1)/(2r + 1) = (2r + 1/2)/(r + 1/2).
             // But this is close enough to 2r.
             float mean = (cumulLogHist[r * 2] - cumulLogHist[r]) * oneOverLog2;
             if (mean > maxMean) {
                 maxMean = mean;
                 maxMeanRadius = r;
             }
+            // Radius at center of interval
             float rc = r * sqrt2;
             System.out.println(r + "\t" + Math.log(r) + "\t" + hist[r] + "\t" + rc + "\t" + Math.log(rc) + "\t" + mean);
         }
         // Halfway through the interval of width ln(2) in the log domain occurs at an offset of
         // e^(ln(2)/2) = e^(ln(2^(1/2))) = sqrt(2) from the start of the interval in the linear domain.
         int optimalRadius = (int) Math.round(maxMeanRadius * sqrt2);
-        float natPeriod = 4 * maxMeanRadius + 2;  // N.B. would be more accurate if we used parabolic fit for maxMeanRadius
+        float natPeriod = 2 * maxMeanRadius + 2;  // N.B. would be more accurate if we used parabolic fit for maxMeanRadius
         System.out.println("Max mean radius: " + maxMeanRadius + "; approx natural period: " + natPeriod + "; optimal radius: " + optimalRadius);
         System.exit(1);
 
@@ -136,7 +142,7 @@ public class Utils {
         // System.out.println(i + "\t" + hist[i] + "\t" + avg);
         // }
 
-        int[][] peaks = MUDDLE.findPeaks(data, /* radius = */15, /* spanGaps = */true);
+        int[][] peaks = MUDDLE.findPeaks(data, /* radius = */36, /* spanGaps = */true);
         float[][] graph = new float[data.length][3];
         for (int i = 0; i < data.length; i++) {
             graph[i][0] = data[i];

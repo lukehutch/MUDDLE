@@ -24,8 +24,6 @@ public class MUDDLE {
             minima.dilate();
             maxima.dilate();
         }
-        minima.finalize();
-        maxima.finalize();
 
         int[] maxIdxs = new int[data.length], minIdxs = new int[data.length];
         int numMaxIdxs = 0, numMinIdxs = 0;
@@ -55,21 +53,7 @@ public class MUDDLE {
                 // extrema.
                 // TODO: the difference is picking the widest extremum (dominant over the widest range) vs. the tallest.
                 Extrema otherTypeExtrema = extremumType == 1 ? minima : maxima;
-                int centerX = (prevDataIdx + currDataIdx) / 2;
-                int searchRadius = (currDataIdx - prevDataIdx - 1) / 2;
-                int maxRadiusX = centerX, maxRadius = otherTypeExtrema.maxRadius[maxRadiusX];
-                for (int r = 1; r <= searchRadius; r++) {
-                    int dr0 = otherTypeExtrema.maxRadius[centerX - r];
-                    if (dr0 > maxRadius) {
-                        maxRadius = dr0;
-                        maxRadiusX = centerX - r;
-                    }
-                    int dr1 = otherTypeExtrema.maxRadius[centerX + r];
-                    if (dr1 > maxRadius) {
-                        maxRadius = dr1;
-                        maxRadiusX = centerX + r;
-                    }
-                }
+                int maxRadiusX = otherTypeExtrema.findMostDominantExtremumBetween(prevDataIdx, currDataIdx);
                 // Add the opposite-type extremum into the output
                 if (extremumType == 1) {
                     minIdxs[numMinIdxs++] = maxRadiusX;
@@ -98,10 +82,6 @@ public class MUDDLE {
         for (int r = 1; r <= maxRadius; r++) {
             minima.dilate();
             maxima.dilate();
-            // Removing extrema dominated by data points at each step gives a better estimate of the true alternation frac,
-            // but isn't as inefficient as running an O(maxRadius^2) loop of dilation to r followed by a call to finalize(). 
-            minima.removeExtremaDominatedByDataPoints();
-            maxima.removeExtremaDominatedByDataPoints();
 
             int numSame = 0, numDiff = 0;
             int idxMin = 0, idxMax = 0;
@@ -130,6 +110,8 @@ public class MUDDLE {
             }
             int denom = numSame + numDiff;
             alternationHist[r] = denom == 0 ? 0.0f : (float) numDiff / (float) denom;
+            
+            System.out.println((minima.numLiveExtrema + maxima.numLiveExtrema)*.5 + "\t" + alternationHist[r]);
         }
         return alternationHist;
     }
