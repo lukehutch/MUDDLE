@@ -1,5 +1,7 @@
 package io.github.lukehutch.muddle;
 
+import java.util.Arrays;
+
 public class MUDDLEInverted {
 
     final float[] data;
@@ -45,31 +47,28 @@ public class MUDDLEInverted {
         }
     }
 
-    public void produceHist() {
+    public void produceAltFracHist() {
         float[][] altHist = new float[maxRadius + 1][2]; // TODO: make these ints if multiplying by 0.9999 doesn't work
         int[] prevExtremumType = new int[maxRadius + 1];
+        int[] prevExtremumIdx = new int[maxRadius + 1];
         for (int t = 0, tEnd = data.length - 1; t < tEnd; t++) {
             // Optimization -- most data points are not extrema, even at r = 1
             if (extent[t] > 0) {
                 float d = data[t], d1 = data[t + 1];
                 int extremumType = d > d1 ? 1 : d < d1 ? -1 : 0;
                 for (int r = 1; r <= extent[t]; r++) {
-                    if (prevExtremumType[r] != 0 && extremumType != prevExtremumType[r]) {
-                        // Previous extremum was of the opposite type, increase alteration frac
-                        altHist[r][0] += 1.0f; // numer
+                    if (prevExtremumType[r] != 0) {
+                        if (extremumType != prevExtremumType[r]) {
+                            // Previous extremum was of the opposite type, increase alteration frac
+                            altHist[r][0] += 1.0f; // numer
+                        }
                     }
                     altHist[r][1] += 1.0f; // denom
 
-                    // altHist[r][0] *= 0.9999f; // TODO
-                    // altHist[r][1] *= 0.9999f;
-
                     prevExtremumType[r] = extremumType;
+                    prevExtremumIdx[r] = t;
                 }
             }
-            // if (t % 100 == 99) {
-            // System.out.println(t);
-            // smoothAltFracHist(maxRadius, altHist);
-            // }
         }
         smoothAltFracHist(altHist, maxRadius);
     }
@@ -116,6 +115,80 @@ public class MUDDLEInverted {
         float natPeriod = 2 * maxMeanRadius + 2; // N.B. would be more accurate if we used parabolic fit for
                                                  // maxMeanRadius
         System.out.println("Max mean radius: " + maxMeanRadius + "; approx natural period: " + natPeriod + "; optimal radius: " + optimalRadius);
+    }
+
+    public void produceExtentHist() {
+        int[] numExtremaAtRadius = new int[maxRadius + 1];
+        for (int t = 0; t < data.length; t++) {
+            numExtremaAtRadius[extent[t]]++; // TODO: unused?
+        }
+        int[] prevExtremumType = new int[maxRadius + 1];
+        int[] prevExtremumIdx = new int[maxRadius + 1];
+
+        double binPow = 0.2;
+        int nBins = 4; // TODO: use 5 or 6
+        float[] binRatio = new float[nBins];
+        float[] binRatioInv = new float[nBins];
+        for (int i = 0; i < nBins; i++) {
+            double ratio = Math.pow(2, (i + 1) * binPow);
+            binRatio[i] = (float) ratio;
+            binRatioInv[i] = (float) (1.0 / ratio);
+        }
+
+        int[][] sepHist = new int[maxRadius + 1][nBins];
+        for (int t = 0, tEnd = data.length - 1; t < tEnd; t++) {
+            // Optimization -- most data points are not extrema, even at r = 1
+            if (extent[t] > 0) {
+                float d = data[t], d1 = data[t + 1];
+                int extremumType = d > d1 ? 1 : d < d1 ? -1 : 0;
+                for (int r = 1; r <= extent[t]; r++) {
+                    if (prevExtremumType[r] != 0 && extremumType == prevExtremumType[r]) {
+                        // Build hist of extremum separation at each scale
+                        int sep = t - prevExtremumIdx[r];
+                        if (sep <= maxRadius) {
+                            float sepRatio = (float) sep / (float) r;
+                            // Saves taking the log of sepRatio to find the bin:
+                            for (int i = 0; i < nBins; i++) {
+                                if (sepRatio < binRatio[i]) {
+                                    sepHist[r][i]++;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    prevExtremumType[r] = extremumType;
+                    prevExtremumIdx[r] = t;
+                }
+            }
+        }
+        // for (int r = 1; r <= 100 /* maxRadius */; r++) {
+        // for (int j = 0; j < nBins; j++) {
+        // System.out.print((j == 0 ? "" : "\t") + sepHist[r][j]);
+        // }
+        // System.out.println();
+        // }
+        float[] resampledSepHist = new float[maxRadius + 1];
+        for (int i = 1; i < resampledSepHist.length; i++) {
+            // Accumulate linear interpolation of domain-scaled histogram for each bin
+            for (int j = 0; j < nBins; j++) {
+                float scaledIdx = i * binRatioInv[j];
+                int scaledIdxInt = (int) scaledIdx;
+                float weight = scaledIdx - scaledIdxInt;
+                if (scaledIdxInt < maxRadius) {
+                    resampledSepHist[i] += (1.0f - weight) * sepHist[scaledIdxInt][j] + weight * sepHist[scaledIdxInt + 1][j];
+                }
+            }
+            // System.out.println(resampledSepHist[i]);
+        }
+        float[] harmonicCombinedHist = new float[maxRadius / 2];
+        for (int i = 2; i < harmonicCombinedHist.length; i++) {
+            int ii = 2 * i - 2;
+            if (ii > 1 && ii < maxRadius - 1) {
+                harmonicCombinedHist[i] =
+                    resampledSepHist[i] + 0.25f * resampledSepHist[ii - 1] + 0.5f * resampledSepHist[ii] + 0.25f * resampledSepHist[ii + 1];
+            }
+            System.out.println(harmonicCombinedHist[i]);
+        }
     }
 
     /**
@@ -166,12 +239,21 @@ public class MUDDLEInverted {
         // for (float f : data) {
         // System.out.println(f);
         // }
+
+        data = Arrays.copyOf(data, 20000); // TODO
+
         MUDDLEInverted muddle = new MUDDLEInverted(data, 300);
-        int scale = 36;
-        for (int i = 0, iMax = data.length - 1; i < iMax; i++) {
-            int extremumType = muddle.extent[i] >= scale && data[i] > data[i + 1] ? 1 : muddle.extent[i] >= scale && data[i] < data[i + 1] ? -1 : 0;
-            System.out.println(muddle.data[i] + "\t" + muddle.extent[i] + "\t" + (extremumType == 1 ? data[i] : 0.0f) + "\t"
-                + (extremumType == -1 ? data[i] : 0.0f));
-        }
+
+        // int scale = 36;
+        // for (int i = 0, iMax = data.length - 1; i < iMax; i++) {
+        // int extremumType = muddle.extent[i] >= scale && data[i] > data[i + 1] ? 1 : muddle.extent[i] >= scale && data[i] < data[i + 1] ? -1 : 0;
+        // System.out.println(muddle.data[i] + "\t" + muddle.extent[i] + "\t" + (extremumType == 1 ? data[i] : 0.0f) + "\t"
+        // + (extremumType == -1 ? data[i] : 0.0f));
+        // }
+
+        // muddle.produceAltFracHist();
+
+        muddle.produceExtentHist();
+
     }
 }
